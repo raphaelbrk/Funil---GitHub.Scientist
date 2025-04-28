@@ -9,25 +9,25 @@ using System.Linq;
 namespace FunilRollout.Services;
 
 /// <summary>
-/// Implementação avançada que integra o RolloutFunnel com validações personalizadas
-/// dentro de um fluxo unificado de rollout progressivo
+/// Advanced implementation that integrates RolloutFunnel with custom validations
+/// within a unified progressive rollout flow
 /// </summary>
-public class FunilAvancado
+public class AdvancedFunnel
 {
     private readonly RolloutFunnel _rolloutFunnel;
     private readonly RedisConfigProvider _redisConfig;
-    private readonly ILogger<FunilAvancado> _logger;
+    private readonly ILogger<AdvancedFunnel> _logger;
 
-    // Chaves de configuração no Redis
-    private const string CHAVE_CONFIG_ATIVA = "rollout:config_ativa";
-    private const string CHAVE_CRITERIOS_USUARIOS = "rollout:criterios_usuarios";
-    private const string CHAVE_MULTIPLOS_CRITERIOS = "rollout:multiplos_criterios";
-    private const string CHAVE_LISTA_CPFS = "rollout:cpf_list";
+    // Redis configuration keys
+    private const string ACTIVE_CONFIG_KEY = "rollout:config_active";
+    private const string USER_CRITERIA_KEY = "rollout:user_criteria";
+    private const string MULTIPLE_CRITERIA_KEY = "rollout:multiple_criteria";
+    private const string CPF_LIST_KEY = "rollout:cpf_list";
 
-    public FunilAvancado(
+    public AdvancedFunnel(
         RolloutFunnel rolloutFunnel,
         RedisConfigProvider redisConfig,
-        ILogger<FunilAvancado> logger)
+        ILogger<AdvancedFunnel> logger)
     {
         _rolloutFunnel = rolloutFunnel;
         _redisConfig = redisConfig;
@@ -35,184 +35,184 @@ public class FunilAvancado
     }
 
     /// <summary>
-    /// MÉTODO PRINCIPAL: Executa a operação usando Scientist.net integrado com critérios personalizados
+    /// MAIN METHOD: Executes the operation using Scientist.net integrated with custom criteria
     /// </summary>
-    /// <typeparam name="T">Tipo de retorno</typeparam>
-    /// <param name="experimentName">Nome do experimento</param>
-    /// <param name="parametrosValidacao">Parâmetros para validar elegibilidade</param>
-    /// <param name="controlFunc">Método antigo (controle)</param>
-    /// <param name="candidatoFunc">Método novo (candidato)</param>
-    /// <returns>Resultado da execução do método de controle</returns>
-    public T ExecutarComValidacao<T>(
+    /// <typeparam name="T">Return type</typeparam>
+    /// <param name="experimentName">Experiment name</param>
+    /// <param name="validationParameters">Parameters to validate eligibility</param>
+    /// <param name="controlFunc">Old method (control)</param>
+    /// <param name="candidateFunc">New method (candidate)</param>
+    /// <returns>Result of the control method execution</returns>
+    public T ExecuteWithValidation<T>(
         string experimentName,
-        ParametrosValidacao parametrosValidacao,
+        ValidationParameters validationParameters,
         Func<T> controlFunc,
-        Func<T> candidatoFunc)
+        Func<T> candidateFunc)
     {
-        // Verifica se o usuário é elegível com os múltiplos critérios
-        // antes mesmo de passar para o RolloutFunnel
-        bool usuarioElegivel = ValidarElegibilidadeCompleta(parametrosValidacao);
+        // Check if the user is eligible with multiple criteria
+        // before passing to RolloutFunnel
+        bool userEligible = ValidateCompleteEligibility(validationParameters);
         
-        // Se não for elegível, já retorna o resultado do método antigo sem executar o funil
-        if (!usuarioElegivel)
+        // If not eligible, return the result of the old method without executing the funnel
+        if (!userEligible)
         {
             return controlFunc();
         }
         
-        // Adiciona contexto detalhado para análise
-        var contextoDetalhado = CriarContextoDetalhado(parametrosValidacao);
+        // Add detailed context for analysis
+        var detailedContext = CreateDetailedContext(validationParameters);
         
-        // Usa o RolloutFunnel com o usuário elegível para fazer o rollout progressivo
+        // Use RolloutFunnel with the eligible user for progressive rollout
         return _rolloutFunnel.Execute(
             experimentName: experimentName,
             controlFunc: controlFunc,
-            candidateFunc: candidatoFunc,
-            additionalContext: contextoDetalhado
+            candidateFunc: candidateFunc,
+            additionalContext: detailedContext
         );
     }
     
     /// <summary>
-    /// Versão assíncrona para execução com validação completa
+    /// Asynchronous version for execution with complete validation
     /// </summary>
-    public async Task<T> ExecutarComValidacaoAsync<T>(
+    public async Task<T> ExecuteWithValidationAsync<T>(
         string experimentName,
-        ParametrosValidacao parametrosValidacao,
+        ValidationParameters validationParameters,
         Func<Task<T>> controlFunc,
-        Func<Task<T>> candidatoFunc)
+        Func<Task<T>> candidateFunc)
     {
-        // Verifica se o usuário é elegível com os múltiplos critérios
-        bool usuarioElegivel = ValidarElegibilidadeCompleta(parametrosValidacao);
+        // Check if the user is eligible with multiple criteria
+        bool userEligible = ValidateCompleteEligibility(validationParameters);
         
-        // Se não for elegível, já retorna o resultado do método antigo sem executar o funil
-        if (!usuarioElegivel)
+        // If not eligible, return the result of the old method without executing the funnel
+        if (!userEligible)
         {
             return await controlFunc();
         }
         
-        // Adiciona contexto detalhado para análise
-        var contextoDetalhado = CriarContextoDetalhado(parametrosValidacao);
+        // Add detailed context for analysis
+        var detailedContext = CreateDetailedContext(validationParameters);
         
-        // Usa o RolloutFunnel com o usuário elegível
+        // Use RolloutFunnel with the eligible user
         return await _rolloutFunnel.ExecuteAsync(
             experimentName: experimentName,
             controlFunc: controlFunc,
-            candidateFunc: candidatoFunc,
-            additionalContext: contextoDetalhado
+            candidateFunc: candidateFunc,
+            additionalContext: detailedContext
         );
     }
     
     /// <summary>
-    /// Valida se o usuário é elegível para participar do experimento
-    /// Combina validação por porcentagem com critérios adicionais
+    /// Validates if the user is eligible to participate in the experiment
+    /// Combines percentage validation with additional criteria
     /// </summary>
-    private bool ValidarElegibilidadeCompleta(ParametrosValidacao parametros)
+    private bool ValidateCompleteEligibility(ValidationParameters parameters)
     {
         try
         {
-            // Verifica se a validação avançada está ativa
-            if (!IsValidacaoCriteriosAtiva())
+            // Check if advanced validation is active
+            if (!IsCriteriaValidationActive())
             {
-                // Se a validação por critérios não está ativa, usa apenas a validação por porcentagem
-                return IsUsuarioElegivelPorPorcentagem(parametros.UsuarioId);
+                // If criteria validation is not active, use only percentage validation
+                return IsUserEligibleByPercentage(parameters.UserId);
             }
             
-            // Verifica se o usuário está dentro da porcentagem de rollout
-            if (!IsUsuarioElegivelPorPorcentagem(parametros.UsuarioId))
+            // Check if the user is within the rollout percentage
+            if (!IsUserEligibleByPercentage(parameters.UserId))
             {
                 return false;
             }
             
-            // Verifica se precisa avaliar múltiplos critérios
-            if (IsMultiplosCriteriosHabilitados())
+            // Check if multiple criteria need to be evaluated
+            if (IsMultipleCriteriaEnabled())
             {
-                return ValidarCriteriosFuncionais(parametros) && 
-                       ValidarCriteriosComportamentais(parametros) &&
-                       ValidarCriteriosContextuais(parametros);
+                return ValidateFunctionalCriteria(parameters) && 
+                       ValidateBehavioralCriteria(parameters) &&
+                       ValidateContextualCriteria(parameters);
             }
             else
             {
-                // Se não há múltiplos critérios, valida apenas critérios funcionais básicos
-                return ValidarCriteriosFuncionais(parametros);
+                // If there are no multiple criteria, validate only basic functional criteria
+                return ValidateFunctionalCriteria(parameters);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Erro ao validar elegibilidade para o usuário {UsuarioId}", parametros.UsuarioId);
+            _logger.LogError(ex, "Error validating eligibility for user {UserId}", parameters.UserId);
             
-            // Em caso de erro, faz o fallback para implementação antiga
+            // In case of error, fallback to old implementation
             return false;
         }
     }
     
     /// <summary>
-    /// Verifica se o usuário está dentro da porcentagem de rollout configurada
+    /// Checks if the user is within the configured rollout percentage
     /// </summary>
-    private bool IsUsuarioElegivelPorPorcentagem(int usuarioId)
+    private bool IsUserEligibleByPercentage(int userId)
     {
-        // Primeiro verifica se o rollout está habilitado
+        // First check if rollout is enabled
         if (!_rolloutFunnel.IsRolloutEnabled())
         {
             return false;
         }
         
-        // Obtém a porcentagem atual
-        int percentual = _rolloutFunnel.GetRolloutPercentage();
+        // Get current percentage
+        int percentage = _rolloutFunnel.GetRolloutPercentage();
         
-        // Se o percentual for 0 ou menor, ninguém é elegível
-        if (percentual <= 0)
+        // If percentage is 0 or less, no one is eligible
+        if (percentage <= 0)
         {
             return false;
         }
         
-        // Se o percentual for 100 ou maior, todos são elegíveis
-        if (percentual >= 100)
+        // If percentage is 100 or more, everyone is eligible
+        if (percentage >= 100)
         {
             return true;
         }
         
-        // Cria um Random baseado no ID do usuário para garantir consistência
-        // de forma que o mesmo usuário sempre tenha o mesmo resultado
-        int semente = usuarioId.GetHashCode();
-        Random randomUsuario = new Random(semente);
+        // Create a Random based on the user ID to ensure consistency
+        // so the same user always gets the same result
+        int seed = userId.GetHashCode();
+        Random userRandom = new Random(seed);
         
-        // Retorna true se o número gerado estiver dentro da porcentagem
-        return randomUsuario.Next(100) < percentual;
+        // Return true if the generated number is within the percentage
+        return userRandom.Next(100) < percentage;
     }
     
     /// <summary>
-    /// Valida critérios funcionais (tipo de usuário, grupos, etc.)
+    /// Validates functional criteria (user type, groups, etc.)
     /// </summary>
-    private bool ValidarCriteriosFuncionais(ParametrosValidacao parametros)
+    private bool ValidateFunctionalCriteria(ValidationParameters parameters)
     {
-        // Obtém configuração
-        string criteriosPermitidos = _redisConfig.GetConfigValue(CHAVE_CRITERIOS_USUARIOS, "");
+        // Get configuration
+        string allowedCriteria = _redisConfig.GetConfigValue(USER_CRITERIA_KEY, "");
         
-        // Se não há critérios, todos são válidos
-        if (string.IsNullOrEmpty(criteriosPermitidos))
+        // If there are no criteria, all are valid
+        if (string.IsNullOrEmpty(allowedCriteria))
         {
             return true;
         }
         
-        // Divide critérios e converte para HashSet para busca mais eficiente
-        HashSet<string> criterios = new HashSet<string>(
-            criteriosPermitidos.Split(','), 
+        // Split criteria and convert to HashSet for more efficient search
+        HashSet<string> criteria = new HashSet<string>(
+            allowedCriteria.Split(','), 
             StringComparer.OrdinalIgnoreCase
         );
         
-        // Verifica se o tipo de usuário está na lista de permitidos
-        if (criterios.Count > 0 && !string.IsNullOrEmpty(parametros.TipoUsuario))
+        // Check if the user type is in the list of allowed types
+        if (criteria.Count > 0 && !string.IsNullOrEmpty(parameters.UserType))
         {
-            if (!criterios.Contains(parametros.TipoUsuario))
+            if (!criteria.Contains(parameters.UserType))
             {
                 return false;
             }
         }
         
         // Check if the CPF is in the allowed list
-        if (parametros.DadosContextuais != null && 
-            parametros.DadosContextuais.ContainsKey("CPF"))
+        if (parameters.ContextualData != null && 
+            parameters.ContextualData.ContainsKey("CPF"))
         {
-            string cpf = parametros.DadosContextuais["CPF"]?.ToString();
+            string cpf = parameters.ContextualData["CPF"]?.ToString();
             if (!string.IsNullOrEmpty(cpf) && !ValidateCpfInList(cpf))
             {
                 return false;
@@ -220,12 +220,12 @@ public class FunilAvancado
         }
         
         // Check with the LinkedPerson service if the user is eligible
-        if (parametros.DadosContextuais != null && 
-            parametros.DadosContextuais.ContainsKey("CheckLinkedPerson") && 
-            bool.TryParse(parametros.DadosContextuais["CheckLinkedPerson"].ToString(), out bool checkLinked) && 
+        if (parameters.ContextualData != null && 
+            parameters.ContextualData.ContainsKey("CheckLinkedPerson") && 
+            bool.TryParse(parameters.ContextualData["CheckLinkedPerson"].ToString(), out bool checkLinked) && 
             checkLinked)
         {
-            return ValidateLinkedPersonUser(parametros);
+            return ValidateLinkedPersonUser(parameters);
         }
         
         return true;
@@ -242,7 +242,7 @@ public class FunilAvancado
             cpf = new string(cpf.Where(char.IsDigit).ToArray());
             
             // Get the list of allowed CPFs from Redis
-            string cpfList = _redisConfig.GetConfigValue(CHAVE_LISTA_CPFS, "");
+            string cpfList = _redisConfig.GetConfigValue(CPF_LIST_KEY, "");
             
             if (string.IsNullOrEmpty(cpfList))
             {
@@ -262,19 +262,19 @@ public class FunilAvancado
     /// <summary>
     /// Checks eligibility using the LinkedPerson service
     /// </summary>
-    private bool ValidateLinkedPersonUser(ParametrosValidacao parametros)
+    private bool ValidateLinkedPersonUser(ValidationParameters parameters)
     {
         try
         {
             // According to the requirement, should return true if LinkedPerson service validates the user
-            if (parametros.DadosContextuais == null)
+            if (parameters.ContextualData == null)
             {
                 return false;
             }
             
             // Get data for LinkedPerson service query
-            string cpf = parametros.DadosContextuais.ContainsKey("CPF") ? 
-                        parametros.DadosContextuais["CPF"]?.ToString() : null;
+            string cpf = parameters.ContextualData.ContainsKey("CPF") ? 
+                        parameters.ContextualData["CPF"]?.ToString() : null;
             
             // To avoid invalid queries
             if (string.IsNullOrEmpty(cpf))
@@ -285,19 +285,19 @@ public class FunilAvancado
             // Here would call the real LinkedPerson service
             // In this example we simulate validation based on CPF
             // In production, you would implement the real service call
-            bool userEligible = SimulateLinkedPersonQuery(cpf, parametros.UsuarioId);
+            bool userEligible = SimulateLinkedPersonQuery(cpf, parameters.UserId);
             
             _logger.LogInformation(
                 "LinkedPerson query for CPF {CPF} (user {UserId}): Eligible = {Eligible}",
                 cpf,
-                parametros.UsuarioId,
+                parameters.UserId,
                 userEligible);
                 
             return userEligible;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error querying LinkedPerson service for user {UserId}", parametros.UsuarioId);
+            _logger.LogError(ex, "Error querying LinkedPerson service for user {UserId}", parameters.UserId);
             return false;
         }
     }
@@ -321,21 +321,21 @@ public class FunilAvancado
     }
     
     /// <summary>
-    /// Valida critérios comportamentais (histórico de compras, tempo de uso, etc.)
+    /// Validates behavioral criteria (purchase history, usage time, etc.)
     /// </summary>
-    private bool ValidarCriteriosComportamentais(ParametrosValidacao parametros)
+    private bool ValidateBehavioralCriteria(ValidationParameters parameters)
     {
-        // Implementação básica - na prática você pode adicionar regras mais complexas
+        // Basic implementation - in practice you can add more complex rules
         
-        // Exemplo: verificar se o usuário tem histórico de compras
-        if (parametros.DadosComportamentais != null && 
-            parametros.DadosComportamentais.ContainsKey("HistoricoCompras"))
+        // Example: check if the user has purchase history
+        if (parameters.BehavioralData != null && 
+            parameters.BehavioralData.ContainsKey("PurchaseHistory"))
         {
-            bool temHistorico = bool.TryParse(
-                parametros.DadosComportamentais["HistoricoCompras"].ToString(), 
-                out bool resultado) && resultado;
+            bool hasHistory = bool.TryParse(
+                parameters.BehavioralData["PurchaseHistory"].ToString(), 
+                out bool result) && result;
                 
-            if (!temHistorico)
+            if (!hasHistory)
             {
                 return false;
             }
@@ -345,27 +345,27 @@ public class FunilAvancado
     }
     
     /// <summary>
-    /// Valida critérios contextuais (localização, dispositivo, etc.)
+    /// Validates contextual criteria (location, device, etc.)
     /// </summary>
-    private bool ValidarCriteriosContextuais(ParametrosValidacao parametros)
+    private bool ValidateContextualCriteria(ValidationParameters parameters)
     {
-        // Implementação básica - na prática você pode adicionar regras mais complexas
+        // Basic implementation - in practice you can add more complex rules
         
-        // Exemplo: verificar a região do usuário
-        if (parametros.DadosContextuais != null && 
-            parametros.DadosContextuais.ContainsKey("Regiao"))
+        // Example: check the user's region
+        if (parameters.ContextualData != null && 
+            parameters.ContextualData.ContainsKey("Region"))
         {
-            string regiao = parametros.DadosContextuais["Regiao"]?.ToString();
-            string regioesPermitidas = _redisConfig.GetConfigValue("rollout:regioes_permitidas", "");
+            string region = parameters.ContextualData["Region"]?.ToString();
+            string allowedRegions = _redisConfig.GetConfigValue("rollout:allowed_regions", "");
             
-            if (!string.IsNullOrEmpty(regioesPermitidas) && !string.IsNullOrEmpty(regiao))
+            if (!string.IsNullOrEmpty(allowedRegions) && !string.IsNullOrEmpty(region))
             {
-                HashSet<string> regioes = new HashSet<string>(
-                    regioesPermitidas.Split(','), 
+                HashSet<string> regions = new HashSet<string>(
+                    allowedRegions.Split(','), 
                     StringComparer.OrdinalIgnoreCase
                 );
                 
-                if (regioes.Count > 0 && !regioes.Contains(regiao))
+                if (regions.Count > 0 && !regions.Contains(region))
                 {
                     return false;
                 }
@@ -376,104 +376,104 @@ public class FunilAvancado
     }
     
     /// <summary>
-    /// Cria um contexto detalhado para análise do experimento
+    /// Creates a detailed context for experiment analysis
     /// </summary>
-    private object CriarContextoDetalhado(ParametrosValidacao parametros)
+    private object CreateDetailedContext(ValidationParameters parameters)
     {
-        // Mapeia apenas propriedades relevantes para o contexto
-        // evitando adicionar informações sensíveis
+        // Maps only relevant properties to the context
+        // avoiding adding sensitive information
         return new
         {
-            UsuarioId = parametros.UsuarioId,
-            TipoUsuario = parametros.TipoUsuario,
-            TemDadosComportamentais = parametros.DadosComportamentais?.Count > 0,
-            TemDadosContextuais = parametros.DadosContextuais?.Count > 0,
-            DataExecucao = DateTime.UtcNow
+            UserId = parameters.UserId,
+            UserType = parameters.UserType,
+            HasBehavioralData = parameters.BehavioralData?.Count > 0,
+            HasContextualData = parameters.ContextualData?.Count > 0,
+            ExecutionDate = DateTime.UtcNow
         };
     }
     
     /// <summary>
-    /// Configura os parâmetros de validação no Redis
+    /// Configures validation parameters in Redis
     /// </summary>
-    public void ConfigurarValidacaoAvancada(ConfiguracaoAvancada config)
+    public void ConfigureAdvancedValidation(AdvancedConfiguration config)
     {
         try
         {
-            // Ativa ou desativa a validação por critérios
-            _redisConfig.SetConfigValue(CHAVE_CONFIG_ATIVA, config.ValidacaoAtiva.ToString());
+            // Activate or deactivate criteria validation
+            _redisConfig.SetConfigValue(ACTIVE_CONFIG_KEY, config.ValidationActive.ToString());
             
-            // Ativa ou desativa múltiplos critérios
-            _redisConfig.SetConfigValue(CHAVE_MULTIPLOS_CRITERIOS, config.MultiplosCriterios.ToString());
+            // Activate or deactivate multiple criteria
+            _redisConfig.SetConfigValue(MULTIPLE_CRITERIA_KEY, config.MultipleCriteria.ToString());
             
-            // Configura critérios dos usuários
-            if (config.CriteriosPermitidos != null)
+            // Configure user criteria
+            if (config.AllowedCriteria != null)
             {
-                _redisConfig.SetConfigValue(CHAVE_CRITERIOS_USUARIOS, 
-                    string.Join(",", config.CriteriosPermitidos));
+                _redisConfig.SetConfigValue(USER_CRITERIA_KEY, 
+                    string.Join(",", config.AllowedCriteria));
             }
             
             // Configure the allowed CPF list
             if (config.AllowedCpfList != null)
             {
-                _redisConfig.SetConfigValue(CHAVE_LISTA_CPFS, 
+                _redisConfig.SetConfigValue(CPF_LIST_KEY, 
                     string.Join(",", config.AllowedCpfList));
             }
             
-            // Configura também a porcentagem no RolloutFunnel
-            _rolloutFunnel.EnableRollout(config.ValidacaoAtiva);
-            _rolloutFunnel.SetRolloutPercentage(config.Porcentagem);
+            // Also configure the percentage in RolloutFunnel
+            _rolloutFunnel.EnableRollout(config.ValidationActive);
+            _rolloutFunnel.SetRolloutPercentage(config.Percentage);
             
             _logger.LogInformation(
-                "Configuração avançada atualizada: Ativa={Ativa}, Porcentagem={Porcentagem}%, Múltiplos Critérios={MultCriterios}",
-                config.ValidacaoAtiva,
-                config.Porcentagem,
-                config.MultiplosCriterios);
+                "Advanced configuration updated: Active={Active}, Percentage={Percentage}%, Multiple Criteria={MultCriteria}",
+                config.ValidationActive,
+                config.Percentage,
+                config.MultipleCriteria);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Erro ao configurar validação avançada");
+            _logger.LogError(ex, "Error configuring advanced validation");
             throw;
         }
     }
     
     /// <summary>
-    /// Verifica se a validação de critérios está ativa
+    /// Checks if criteria validation is active
     /// </summary>
-    private bool IsValidacaoCriteriosAtiva()
+    private bool IsCriteriaValidationActive()
     {
-        string valor = _redisConfig.GetConfigValue(CHAVE_CONFIG_ATIVA, "false");
-        return bool.TryParse(valor, out bool resultado) && resultado;
+        string value = _redisConfig.GetConfigValue(ACTIVE_CONFIG_KEY, "false");
+        return bool.TryParse(value, out bool result) && result;
     }
     
     /// <summary>
-    /// Verifica se a validação de múltiplos critérios está habilitada
+    /// Checks if multiple criteria validation is enabled
     /// </summary>
-    private bool IsMultiplosCriteriosHabilitados()
+    private bool IsMultipleCriteriaEnabled()
     {
-        string valor = _redisConfig.GetConfigValue(CHAVE_MULTIPLOS_CRITERIOS, "false");
-        return bool.TryParse(valor, out bool resultado) && resultado;
+        string value = _redisConfig.GetConfigValue(MULTIPLE_CRITERIA_KEY, "false");
+        return bool.TryParse(value, out bool result) && result;
     }
 }
 
 /// <summary>
-/// Parâmetros para validação de elegibilidade
+/// Parameters for eligibility validation
 /// </summary>
-public class ParametrosValidacao
+public class ValidationParameters
 {
-    public int UsuarioId { get; set; }
-    public string TipoUsuario { get; set; }
-    public Dictionary<string, object> DadosComportamentais { get; set; }
-    public Dictionary<string, object> DadosContextuais { get; set; }
+    public int UserId { get; set; }
+    public string UserType { get; set; }
+    public Dictionary<string, object> BehavioralData { get; set; }
+    public Dictionary<string, object> ContextualData { get; set; }
 }
 
 /// <summary>
-/// Configuração para a validação avançada
+/// Configuration for advanced validation
 /// </summary>
-public class ConfiguracaoAvancada
+public class AdvancedConfiguration
 {
-    public bool ValidacaoAtiva { get; set; } = true;
-    public int Porcentagem { get; set; } = 0;
-    public bool MultiplosCriterios { get; set; } = false;
-    public List<string> CriteriosPermitidos { get; set; }
+    public bool ValidationActive { get; set; } = true;
+    public int Percentage { get; set; } = 0;
+    public bool MultipleCriteria { get; set; } = false;
+    public List<string> AllowedCriteria { get; set; }
     public List<string> AllowedCpfList { get; set; }
 } 
