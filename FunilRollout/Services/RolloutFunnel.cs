@@ -6,14 +6,14 @@ using StackExchange.Redis;
 namespace FunilRollout.Services;
 
 /// <summary>
-/// Implementação de funil de rollout para comparação entre API antiga e nova
+/// Implementation of rollout funnel for comparison between old and new API
 /// </summary>
 public class RolloutFunnel
 {
     private readonly RedisConfigProvider _configProvider;
     private readonly Random _random = new();
     
-    // Chaves do Redis para configuração
+    // Redis configuration keys
     private const string ROLLOUT_ENABLED_KEY = "rollout:enabled";
     private const string ROLLOUT_PERCENTAGE_KEY = "rollout:percentage";
     private const string ROLLOUT_PUBLISH_RESULTS_KEY = "rollout:publish_results";
@@ -22,29 +22,29 @@ public class RolloutFunnel
     {
         _configProvider = configProvider;
         
-        // Configura o publisher padrão
+        // Configure the default publisher
         Scientist.ResultPublisher = new ConsoleResultPublisher();
     }
     
     /// <summary>
-    /// Define um publisher personalizado para os resultados dos experimentos
+    /// Sets a custom publisher for experiment results
     /// </summary>
-    /// <param name="publisher">Publisher a ser utilizado</param>
+    /// <param name="publisher">Publisher to be used</param>
     public void SetPublisher(IResultPublisher publisher)
     {
         Scientist.ResultPublisher = new FireAndForgetResultPublisher(publisher);
     }
     
     /// <summary>
-    /// Executa um experimento comparando os métodos antigo e novo, 
-    /// respeitando a configuração de porcentagem de rollout
+    /// Executes an experiment comparing the old and new methods,
+    /// respecting the rollout percentage configuration
     /// </summary>
-    /// <typeparam name="T">Tipo de retorno dos métodos</typeparam>
-    /// <param name="experimentName">Nome do experimento</param>
-    /// <param name="controlFunc">Método de controle (implementação antiga)</param>
-    /// <param name="candidateFunc">Método candidato (nova implementação)</param>
-    /// <param name="additionalContext">Contexto adicional para logging</param>
-    /// <returns>Resultado do método de controle</returns>
+    /// <typeparam name="T">Return type of the methods</typeparam>
+    /// <param name="experimentName">Experiment name</param>
+    /// <param name="controlFunc">Control method (old implementation)</param>
+    /// <param name="candidateFunc">Candidate method (new implementation)</param>
+    /// <param name="additionalContext">Additional context for logging</param>
+    /// <returns>Result of the control method</returns>
     public T Execute<T>(
         string experimentName,
         Func<T> controlFunc, 
@@ -55,18 +55,22 @@ public class RolloutFunnel
         int percentage = GetRolloutPercentage();
         bool shouldPublish = ShouldPublishResults();
         
+        // If rollout is disabled or percentage check fails, just execute control function directly
+        if (!isEnabled || !ShouldRunExperiment(percentage))
+        {
+            return controlFunc();
+        }
+        
+        // Otherwise, run the experiment
         return Scientist.Science<T>(experimentName, experiment =>
         {
-            // Define quando o experimento deve ser executado
-            experiment.RunIf(() => isEnabled && ShouldRunExperiment(percentage));
-            
-            // Configura o publicador
+            // Configure the publisher
             if (!shouldPublish)
             {
                 Scientist.ResultPublisher = new NullResultPublisher();
             }
             
-            // Adiciona contexto
+            // Add context
             experiment.AddContext("rollout_percentage", percentage);
             experiment.AddContext("timestamp", DateTime.UtcNow);
             if (additionalContext != null)
@@ -74,14 +78,14 @@ public class RolloutFunnel
                 experiment.AddContext("additional_data", additionalContext);
             }
             
-            // Define o método de controle e o candidato
+            // Define the control method and the candidate
             experiment.Use(controlFunc);
             experiment.Try(candidateFunc);
         });
     }
     
     /// <summary>
-    /// Versão assíncrona para execução do experimento
+    /// Asynchronous version for experiment execution
     /// </summary>
     public async Task<T> ExecuteAsync<T>(
         string experimentName,
@@ -93,18 +97,22 @@ public class RolloutFunnel
         int percentage = GetRolloutPercentage();
         bool shouldPublish = ShouldPublishResults();
         
+        // If rollout is disabled or percentage check fails, just execute control function directly
+        if (!isEnabled || !ShouldRunExperiment(percentage))
+        {
+            return await controlFunc();
+        }
+        
+        // Otherwise, run the experiment
         return await Scientist.ScienceAsync<T>(experimentName, experiment =>
         {
-            // Define quando o experimento deve ser executado
-            experiment.RunIf(() => isEnabled && ShouldRunExperiment(percentage));
-            
-            // Configura o publicador
+            // Configure the publisher
             if (!shouldPublish)
             {
                 Scientist.ResultPublisher = new NullResultPublisher();
             }
             
-            // Adiciona contexto
+            // Add context
             experiment.AddContext("rollout_percentage", percentage);
             experiment.AddContext("timestamp", DateTime.UtcNow);
             if (additionalContext != null)
@@ -112,14 +120,14 @@ public class RolloutFunnel
                 experiment.AddContext("additional_data", additionalContext);
             }
             
-            // Define o método de controle e o candidato
+            // Define the control method and the candidate
             experiment.Use(controlFunc);
             experiment.Try(candidateFunc);
         });
     }
     
     /// <summary>
-    /// Verifica se o rollout está habilitado
+    /// Checks if rollout is enabled
     /// </summary>
     public bool IsRolloutEnabled()
     {
@@ -128,7 +136,7 @@ public class RolloutFunnel
     }
     
     /// <summary>
-    /// Obtém a porcentagem configurada para o rollout
+    /// Gets the configured percentage for the rollout
     /// </summary>
     public int GetRolloutPercentage()
     {
@@ -136,20 +144,20 @@ public class RolloutFunnel
     }
     
     /// <summary>
-    /// Define a porcentagem de tráfego para o rollout
+    /// Sets the traffic percentage for the rollout
     /// </summary>
     public void SetRolloutPercentage(int percentage)
     {
         if (percentage < 0 || percentage > 100)
         {
-            throw new ArgumentOutOfRangeException(nameof(percentage), "O valor deve estar entre 0 e 100");
+            throw new ArgumentOutOfRangeException(nameof(percentage), "Value must be between 0 and 100");
         }
         
         _configProvider.SetConfigValue(ROLLOUT_PERCENTAGE_KEY, percentage.ToString());
     }
     
     /// <summary>
-    /// Habilita ou desabilita o rollout
+    /// Enables or disables the rollout
     /// </summary>
     public void EnableRollout(bool enabled)
     {
@@ -157,7 +165,7 @@ public class RolloutFunnel
     }
     
     /// <summary>
-    /// Verifica se os resultados devem ser publicados
+    /// Checks if results should be published
     /// </summary>
     private bool ShouldPublishResults()
     {
@@ -166,7 +174,7 @@ public class RolloutFunnel
     }
     
     /// <summary>
-    /// Decide se o experimento deve ser executado com base na porcentagem configurada
+    /// Decides if the experiment should be executed based on the configured percentage
     /// </summary>
     private bool ShouldRunExperiment(int percentage)
     {
@@ -178,7 +186,7 @@ public class RolloutFunnel
 }
 
 /// <summary>
-/// Publisher que não faz nada com os resultados
+/// Publisher that does nothing with the results
 /// </summary>
 public class NullResultPublisher : IResultPublisher
 {
@@ -189,28 +197,28 @@ public class NullResultPublisher : IResultPublisher
 }
 
 /// <summary>
-/// Publisher que escreve os resultados no console
+/// Publisher that writes the results to the console
 /// </summary>
 public class ConsoleResultPublisher : IResultPublisher
 {
     public Task Publish<T, TClean>(Result<T, TClean> result)
     {
-        Console.WriteLine($"Experimento: {result.ExperimentName}");
-        Console.WriteLine($"Resultado: {(result.Matched ? "SUCESSO - Valores Correspondentes" : "FALHA - Valores Diferentes")}");
-        Console.WriteLine($"Valor de controle: {result.Control.Value}");
-        Console.WriteLine($"Duração do controle: {result.Control.Duration.TotalMilliseconds}ms");
+        Console.WriteLine($"Experiment: {result.ExperimentName}");
+        Console.WriteLine($"Result: {(result.Matched ? "SUCCESS - Matching Values" : "FAILURE - Different Values")}");
+        Console.WriteLine($"Control value: {result.Control.Value}");
+        Console.WriteLine($"Control duration: {result.Control.Duration.TotalMilliseconds}ms");
         
         foreach (var observation in result.Candidates)
         {
-            Console.WriteLine($"Candidato: {observation.Name}");
-            Console.WriteLine($"Valor do candidato: {observation.Value}");
-            Console.WriteLine($"Duração do candidato: {observation.Duration.TotalMilliseconds}ms");
+            Console.WriteLine($"Candidate: {observation.Name}");
+            Console.WriteLine($"Candidate value: {observation.Value}");
+            Console.WriteLine($"Candidate duration: {observation.Duration.TotalMilliseconds}ms");
         }
         
-        // Imprime contexto adicional
+        // Print additional context
         foreach (var kvp in result.Contexts)
         {
-            Console.WriteLine($"Contexto - {kvp.Key}: {kvp.Value}");
+            Console.WriteLine($"Context - {kvp.Key}: {kvp.Value}");
         }
         
         Console.WriteLine("----------------------------------");
